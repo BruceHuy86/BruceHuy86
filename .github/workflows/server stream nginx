@@ -1,0 +1,176 @@
+
+#Prior to compiling NGINX Open Source from source, you need to install libraries for its dependencies
+
+#PCRE 
+
+wget github.com/PCRE2Project/pcre2/releases/download/pcre2-10.42/pcre2-10.42.tar.gz
+tar -zxf pcre2-10.42.tar.gz
+cd pcre2-10.42
+./configure
+make
+sudo make install
+
+#zlib 
+
+wget http://zlib.net/fossil/zlib-1.2.13.tar.gz
+tar -zxf zlib-1.2.13.tar.gz
+cd zlib-1.2.13
+./configure
+make
+sudo make install
+
+#OpenSSL 
+
+wget http://www.openssl.org/source/openssl-1.1.1v.tar.gz
+tar -zxf openssl-1.1.1v.tar.gz
+cd openssl-1.1.1v
+./Configure 
+make
+sudo make install
+
+#Download & unpack latest nginx-rtmp 
+
+git clone https://github.com/arut/nginx-rtmp-module.git
+
+#download NGINX
+
+wget https://nginx.org/download/nginx-1.24.0.tar.gz
+tar zxf nginx-1.24.0.tar.gz
+cd nginx-1.24.
+
+#Configuring the Build Options 
+
+./configure --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --modules-path=/usr/lib64/nginx/modules \
+            --conf-path=/etc/nginx/nginx.conf \
+            --error-log-path=/var/log/nginx/error.log \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/run/nginx.lock \
+            --user=nginx \
+            --group=nginx \
+            --build=CentOS \
+            --builddir=nginx-1.24.0 \
+            --with-select_module \
+            --with-poll_module \
+            --with-threads \
+            --with-file-aio \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_realip_module \
+            --with-http_addition_module \
+            --with-http_sub_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_mp4_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_auth_request_module \
+            --with-http_random_index_module \
+            --with-http_secure_link_module \
+            --with-http_degradation_module \
+            --with-http_slice_module \
+            --with-http_stub_status_module \
+            --http-log-path=/var/log/nginx/access.log \
+            --http-client-body-temp-path=/var/cache/nginx/client_temp \
+            --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+            --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+            --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+            --with-mail=dynamic \
+            --with-mail_ssl_module \
+            --with-stream=dynamic \
+            --with-stream_ssl_module \
+            --with-stream_realip_module \
+            --with-stream_ssl_preread_module \
+            --with-compat \
+            --with-pcre=../pcre2-10.42 \
+            --with-pcre-jit \
+            --with-zlib=../zlib-1.2.13 \
+            --with-openssl=../openssl-1.1.1v \
+            --with-openssl-opt=no-nextprotoneg \
+            --add-module=../nginx-rtmp-module \
+            --with-debug
+
+#Completing the Installation from Source 
+
+make
+make install
+
+#Test nginx configuration and the installed nginx version.
+
+nginx -t
+
+#nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+#nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+nginx -V
+
+#nginx version: nginx/1.24.0 (CentOS)
+
+#Configure Nginx as a Service
+
+#Go to the '/lib/systemd/system' directory and create a new 'nginx.service' file
+
+cd /lib/systemd/system/
+vi nginx.service
+#paste the configuration below:
+[Unit]
+Description=nginx - high performance web server
+Documentation=https://nginx.org/en/docs/
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx.conf
+ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx.conf
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+
+Save and exit. 
+
+#Now reload the systemd system.
+
+systemctl daemon-reload
+
+#Start the nginx service and enable it to launch everytime at system boot.
+
+systemctl start nginx
+systemctl enable nginx
+
+#Bkup file config:
+
+cd /etc/nginx/
+cp nginx.conf nginx.conf.bkup
+
+#Using Vi or your favorite text editor, open Nginx’s main configuration file, /etc/nginx/nginx.conf, and add this configuration block to the end of the file:
+
+vi /etc/nginx/nginx.conf
+
+rtmp {
+        server {
+                listen 1935;
+                chunk_size 4096;
+                allow publish 127.0.0.1;
+                deny publish all;
+
+                application live {
+                        live on;
+                        record off;
+                }
+        }
+}
+
+#Now you can reload Nginx with your changes:
+sudo systemctl reload nginx.service
+
+ffmpeg -re -i "Introducing App Platform by DigitalOcean-iom_nhYQIYk.mp4" -c:v copy -c:a aac -ar 44100 -ac 1 -f flv rtmp://localhost/live/stream
+
+#Use VLC to view:
+
+rtmp://ip-address-server-stream/live/stream
