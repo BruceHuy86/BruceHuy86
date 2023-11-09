@@ -1,0 +1,210 @@
+#1 UPDATE 
+    yum update
+CentOS distributions do not ship with dkms. This install can be completed with the following commands:
+    yum install epel-release
+    yum install -y dkms
+
+#2 REBOOT 
+   init 6  
+
+#3 Get the Dependencies
+      yum install autoconf automake bzip2 bzip2-devel cmake freetype-devel gcc gcc-c++ git libtool make pkgconfig zlib-devel
+
+#4 Turn off Selinux
+      vi /etc/sysconfig/selinux
+      init 6
+
+#5 In your home directory make a new directory to put all of the source code into: 
+      mkdir ~/ffmpeg_sources
+
+#6 Install NASM (An assembler used by some libraries. Highly recommended or your resulting build may be very slow)
+     cd ~/ffmpeg_sources
+     curl -O -L https://www.nasm.us/pub/nasm/releasebuilds/2.15.05/nasm-2.15.05.tar.bz2
+     tar xjvf nasm-2.15.05.tar.bz2
+     cd nasm-2.15.05
+     ./autogen.sh
+     ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin"
+     make
+     make install
+
+#7 Install Yasm (An assembler used by some libraries. Highly recommended or your resulting build may be very slow.)
+     cd ~/ffmpeg_sources
+     curl -O -L https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz
+     tar xzvf yasm-1.3.0.tar.gz
+     cd yasm-1.3.0
+     ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin"
+     make
+     make install
+
+#8 Download Desktop Video (driver) & Desktop Video SDK from https://www.blackmagicdesign.com/support/family/capture-and-playback
+
+#9 Unzip Desktop Video SDK 
+     cd ~
+     yum install -y unzip
+     unzip Blackmagic_DeckLink_SDK_*.zip
+     mkdir -p ~/ffmpeg_sources ~/bin
+     cp -r Blackmagic\ DeckLink\ SDK\ */Linux/ ~/ffmpeg_sources/BMD_SDK
+    
+#10 Install Desktop Video (driver) - RedHat or Fedora based distributions. The rpm packages are located in the rpm/x86_64 directory
+     tar -xf Blackmagic_Desktop_Video_Linux_*.tar     
+     cd /root/Blackmagic_Desktop_Video_Linux_12.4.1/rpm/x86_64
+
+     #install the control panel and Media Express, type:
+     yum install --nogpgcheck desktopvideo-*.rpm  mediaexpress-*.rpm
+     cd ~
+     
+#11 Install libx264
+     cd ~/ffmpeg_sources
+     git clone --branch stable --depth 1 https://code.videolan.org/videolan/x264.git
+     cd x264
+     PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin" --enable-static
+     make
+     make install
+
+#12 Install libx265
+     cd ~/ffmpeg_sources
+     git clone --branch stable --depth 2 https://bitbucket.org/multicoreware/x265_git
+     cd ~/ffmpeg_sources/x265_git/build/linux
+     cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$HOME/ffmpeg_build" -DENABLE_SHARED:bool=off ../../source
+     make
+     make install
+
+#13 Install libfdk_aac
+     cd ~/ffmpeg_sources
+     git clone --depth 1 https://github.com/mstorsjo/fdk-aac
+     cd fdk-aac
+     autoreconf -fiv
+     ./configure --prefix="$HOME/ffmpeg_build" --disable-shared
+     make
+     make install
+
+#14 Install libmp3lame
+     cd ~/ffmpeg_sources
+     curl -O -L https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz
+     tar xzvf lame-3.100.tar.gz
+     cd lame-3.100
+     ./configure --prefix="$HOME/ffmpeg_build" --bindir="$HOME/bin" --disable-shared --enable-nasm
+     make
+     make install
+
+#15 Install libopus
+     cd ~/ffmpeg_sources
+     curl -O -L https://archive.mozilla.org/pub/opus/opus-1.3.1.tar.gz
+     tar xzvf opus-1.3.1.tar.gz
+     cd opus-1.3.1
+     ./configure --prefix="$HOME/ffmpeg_build" --disable-shared
+     make
+     make install
+
+#16 Install libvpx
+     cd ~/ffmpeg_sources
+     git clone --depth 1 https://chromium.googlesource.com/webm/libvpx.git
+     cd libvpx
+     ./configure --prefix="$HOME/ffmpeg_build" --disable-examples --disable-unit-tests --enable-vp9-highbitdepth --as=yasm
+     make
+     make install
+
+#17 Install FFmpeg
+     cd ~/ffmpeg_sources
+     wget https://ffmpeg.org/releases/ffmpeg-4.4.tar.bz2
+     tar -xvf ffmpeg-4.4.tar.bz2
+     cd ffmpeg-4.4/
+     PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure   --prefix="$HOME/ffmpeg_build"   --pkg-config-flags="--static"   --extra-cflags="-I$HOME/ffmpeg_build/include -I$HOME/ffmpeg_sources/BMD_SDK/include"   --extra-ldflags="-L$HOME/ffmpeg_build/lib"   --extra-libs="-lpthread -lm"   --bindir="$HOME/bin"   --enable-gpl   --enable-libfdk-aac   --enable-libmp3lame   --enable-libopus   --enable-libvpx   --enable-libx264   --enable-libx265   --enable-nonfree   --enable-decklink
+     make
+     make install
+     hash -d 
+
+
+
+
+#18 rescan PCI device   
+   sh -c 'echo 1 > /sys/bus/pci/rescan'
+   init 6
+
+* How do I check that the driver/device was loaded successfully?
+
+    You can check that your computer find your device by entering the
+    following from a terminal:
+
+     # lspci | grep Blackmagic
+     02:00.0 Multimedia video controller: Blackmagic Design Device a11b
+
+    You should see entries like the above if the device was recognized by the
+    system.
+
+    To test if the driver is loaded properly, type:
+
+     # lsmod | grep blackmagic
+     blackmagic                   2082944  1
+
+    If you get no output, that means that the driver is not loaded.
+
+* How do I update the firmware on a device?
+
+    The device's firmware can be updated with the BlackmagicFirmwareUpdater.
+    See the man page for instructions and examples on how to use the utility.
+
+* The driver crashed my system
+
+    Look for kernel output messages in dmesg and /var/log/messages.
+
+* The package installed, but the driver was not loaded
+
+    Try the following command:
+
+     # dkms status -m blackmagic-io -k `uname -r`
+     
+    If the status is 'installed', then the module is installed, but probably
+    not loaded. It can be loaded with the following command:
+
+     # sudo modprobe blackmagic-io
+
+    If the status is 'added', then the module failed to build. You can issue
+    the following command to manually run the build and use the output to
+    determine the problem.
+
+     # sudo dkms build -m blackmagic-io -v 12.4.1
+
+    The full module version number is in the form 12.4.1aXX. This module number
+    can be found by running dkms status.
+
+    A common cause is a version mismatch between the installed kernel image,
+    and the kernel source/headers. If they do not match, simply bring either
+    the source/headers or the image version up to date, and reboot your system.
+    Once the system is back up, the driver should be built for you at startup.
+    The command to install matching headers for your currently running kernel
+    on CentOS is:
+
+     # sudo yum install "kernel-devel-uname-r == $(uname -r)"
+
+    If the status is 'built', then the module has been built, but not
+    installed. You can issue the following command to manually install and use
+    the output to determine the problem.
+
+     # sudo dkms install -m blackmagic-io -v 12.4.1 --all
+
+    Legacy Desktop Video products on x86_64 platforms use an older driver.  
+    Users should build and install this module with the dkms commands above, 
+    replacing `-m blackmagic-io` option with `-m blackmagic`.
+
+  #211  lsmod | grep blackmagic
+  #212  dkms status -m blackmagic-io -k `uname -r`
+  #213  dkms build -m blackmagic-io -v 12.4.1a15
+  #214  yum install "kernel-devel-uname-r == $(uname -r)"
+  #215  dkms build -m blackmagic-io -v 12.4.1a15
+  #216  dkms status -m blackmagic-io -k `uname -r`
+  #217  lsmod | grep blackmagic
+  #218  dkms install -m blackmagic-io -v 12.4.1 --all
+  #219  dkms install -m blackmagic-io -v 12.4.1a15 --all
+  #220  dkms install -m blackmagic-io -v 12.4.1a15
+  #221  lsmod | grep blackmagic
+  #222  ffmpeg -sinks devices
+  #223  dkms install -m blackmagic -v 12.4.1
+  #224  dkms install -m blackmagic -v 12.4.1a15
+  #225  lsmod | grep blackmagic
+  #226  ffmpeg -sinks devices
+  #227  dkms status -m blackmagic-io -k `uname -r`
+  #228  modprobe blackmagic-io
+  #229  ffmpeg -sinks devices
+  #230  reboot
+  
